@@ -5,24 +5,25 @@
 #include "Apartamento.h"
 #include "Casa.h"
 #include "Terreno.h"
+#include <pqxx/pqxx>
 
 class GerenciadorDeArquivo
 {
 private:
-    std::vector<Imovel*> lista;
+    pqxx::connection conn;
 
 public:
-    bool SalvaArquivo();
-    //vector<Imovel*> leArquivo();
-    bool leArquivo(Imobiliaria*);
-    void outputImovel(std::ostream &,Imovel &);
-    void outputImoveis(vector<Imovel*>);
-
-    void setLista(std::vector<Imovel*> lista)
-    {
-        this->lista = lista;
+    GerenciadorDeArquivo(std::string URL){
+        this->conn = pqxx::connection(URL);
     }
-    
+
+    bool AdicionaImoveis(std::string query. std::vector<Imoveis*> imoveis);
+    std::vector<Imoveis*> ListaImoveis(std::string query);
+    bool ModificaImoveis(std::string query);
+    bool RemoveImoveis(std::string where. std::vector<Imoveis*> imoveis);
+
+
+    ~GerenciadorDeArquivo();
 };
 
 
