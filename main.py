@@ -104,22 +104,22 @@ class GerenciadorClientes:
 
 
 class Venda:
-    def __init__(self, cliente, manga, volume, quantidade):
+    def __init__(self, cliente, manga, volume, preco, quantidade):
         self.cliente = cliente
         self.manga = manga
         self.volume = volume
         self.quantidade = quantidade
-        self.total = manga.preco * quantidade
+        self.preco = preco
+        self.total = preco * quantidade
 
 
 class GerenciadorVendas:
     def __init__(self):
         self.vendas = []
 
-    def realizar_venda(self, cliente, manga, volume, quantidade):
-        venda = Venda(cliente, manga, volume, quantidade)
+    def realizar_venda(self, cliente, manga, volume, preco, quantidade):
+        venda = Venda(cliente, manga, volume, quantidade, preco)
         self.vendas.append(venda)
-        manga.quantidade -= quantidade
         print("Venda realizada com sucesso!")
 
     def exibir_vendas(self):
@@ -127,9 +127,12 @@ class GerenciadorVendas:
             print("Nenhuma venda realizada.")
         else:
             print("Vendas realizadas:")
+            total_geral = 0
             for i, venda in enumerate(self.vendas, 1):
-                print(f"{i}. Cliente: {venda.cliente.nome}, Mangá: {
-                      venda.manga.titulo}, Quantidade: {venda.quantidade}, Total: R${venda.total}")
+                print(f"{i}. Cliente: {venda.cliente}, Mangá: {
+                      venda.manga}, Volume: {venda.volume}, Quantidade: {venda.quantidade}, Total: R${venda.total}")
+                total_geral += venda.total
+            print(f"Total geral: R${total_geral}")
 
 # Função para exibir o menu
 
@@ -222,11 +225,26 @@ def exibir_menu_clientes(clientes):
             break
 
 
-def exibir_menu_vendas():
-    print("\nMenu Vendas:")
-    print("1. Realizar venda")
-    print("2. Exibir vendas")
-    print("3. Voltar")
+def exibir_menu_vendas(vendas):
+    while True:
+        print("\nMenu Vendas:")
+        print("1. Realizar venda")
+        print("2. Exibir vendas")
+        print("3. Voltar")
+
+        opcao = input("Escolha uma opção: ")
+
+        if opcao == "1":
+            cliente = input("Nome do cliente: ")
+            manga = input("Título do mangá: ")
+            volume = input("Volume: ")
+            preco = float(input("Preço: "))
+            quantidade = int(input("Quantidade: "))
+            vendas.realizar_venda(cliente, manga, volume, preco, quantidade)
+        if opcao == "2":
+            vendas.exibir_vendas()
+        if opcao == "3":
+            break
 
 
 def exibir_menu_principal(estoque, clientes, vendas):
@@ -244,7 +262,7 @@ def exibir_menu_principal(estoque, clientes, vendas):
         elif opcao == "2":
             exibir_menu_clientes(clientes)
         elif opcao == "3":
-            exibir_menu_vendas()
+            exibir_menu_vendas(vendas)
         elif opcao == "4":
             print("Saindo...")
             break
