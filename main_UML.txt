@@ -1,0 +1,87 @@
+@startuml
+class Manga {
+        isbn
+    titulo
+    volume
+    autor
+    preco
+    quantidade
+    categoria
+    local_fabricacao
+    __init__()
+}
+class EstoqueMangas {
+    adicionar_manga()
+    pesquisar_manga()
+    alterar_manga()
+    remover_manga()
+    exibir_estoque()
+    exibir_estoque_baixo()
+    exibir_estoque_Mari()
+    exibir_estoque_faixa_preco()
+        conexao
+    __init__()
+}
+class Pessoa {
+        nome
+    email
+    cpf
+    __init__()
+}
+class Vendedor {
+        matricula
+    __init__()
+}
+class Cliente {
+        time
+    obra_favorita
+    cidade_natal
+    __init__()
+}
+class relatorio {
+    vendas()
+    estoque()
+    clientes()
+        __init__()
+}
+class GerenciadorPessoas {
+    adicionar_cliente()
+    adicionar_vendedor()
+    pesquisar_cliente()
+    pesquisar_vendedor()
+    remover_cliente()
+    remover_vendedor()
+    alterar_cliente()
+    alterar_vendedor()
+        conexao
+    __init__()
+}
+class Venda {
+        cpf_vendedor
+    cpf_cliente
+    id_venda
+    quantidade
+    total
+    metodo_pagamento
+    status_pagamento
+    __init__()
+}
+class GerenciadorVendas {
+    inserir_venda()
+    inserir_item_venda()
+    computa_venda_estoque()
+    exibir_vendas()
+    exibir_vendas_cliente()
+    exibir_itens_vendidos()
+    print_manga()
+    exibir_menu_estoque()
+    exibir_menu_pessoas()
+    exibir_menu_vendas()
+    exibir_menu_principal()
+    main()
+        conexao
+    __init__()
+}
+Pessoa <|-- Vendedor
+Pessoa <|-- Cliente
+@enduml
