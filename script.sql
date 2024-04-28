@@ -51,6 +51,15 @@ CREATE TABLE itens_vendidos (
     desconto varchar NOT NULL
 );
 
+CREATE TABLE public.relatorio_venda (
+	id_relatorio int NOT NULL,
+	matricula varchar NULL,
+	id_venda int NULL,
+	quantidade int NULL,
+	total float4 NULL,
+	"data" int NULL
+);
+
 CREATE OR REPLACE VIEW view_clientes AS
 SELECT pessoas.nome, pessoas.cpf, pessoas.email, clientes.time_do_coracao, clientes.obra_favorita, clientes.cidade_natal 
 FROM pessoas
@@ -62,7 +71,7 @@ FROM pessoas
 JOIN funcionarios ON pessoas.cpf = funcionarios.cpf;
 
 CREATE OR REPLACE VIEW view_vendas AS
-SELECT vendas.id_venda, view_clientes.nome as cliente, view_funcionarios.nome as funcionario, vendas.quantidade, vendas.total, vendas.metodo_pagamento, vendas.status_pagamento, vendas.cliente as cpf_cliente 
+SELECT vendas.id_venda, view_clientes.nome as cliente, view_funcionarios.nome as funcionario, vendas.quantidade, vendas.total, vendas.metodo_pagamento, vendas.status_pagamento, vendas.cliente as cpf_cliente, vendas.vendedor as cpf_funcionario
 FROM vendas
 JOIN view_clientes ON vendas.cliente = view_clientes.cpf
 JOIN view_funcionarios ON vendas.vendedor = view_funcionarios.cpf;

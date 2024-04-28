@@ -1,5 +1,7 @@
 import psycopg2
 import random
+from tabulate import tabulate
+from datetime import datetime
 
 
 def conectar():
@@ -129,20 +131,89 @@ class Cliente(Pessoa):
 
 
 class Relatorio:
-    def __init__(self):
+    def __init__(self, conexao):
+        self.conexao = conexao
         self.relatorio = []
 
-    def vendas(vendedor):
-        if vendedor is None:
-            pass
+    def vendas(self, vendedor, data_inicial, data_final):
+        if vendedor:
+            try:
+                with self.conexao.cursor() as cursor:
+                    cursor.execute(
+                        "select view_funcionarios.nome, COUNT(view_vendas.quantidade) as total_vendas, CONCAT('R$ ', COALESCE(SUM(view_vendas.total), 0.00)) AS total_gasto from view_funcionarios left join view_vendas on view_vendas.cpf_funcionario=view_funcionarios.cpf join vendas on vendas.id_venda = view_vendas.id_venda where view_funcionarios.cpf = %s and vendas.data >= %s and vendas.data <= %s GROUP BY view_funcionarios.nome", (vendedor, data_inicial, data_final))
+                    vendas = cursor.fetchall()
+            except (Exception, psycopg2.Error) as error:
+                print("Erro ao recuperar dados:", error)
+                return None
+
+            self.relatorio.append("Relatório de vendas:")
+            header = ["Vendedor", "Quantidade de vendas", "Total vendido"]
+            self.relatorio.append(tabulate(vendas, headers=header))
+
+            return self.relatorio
         else:
-            pass
+            try:
+                with self.conexao.cursor() as cursor:
+                    cursor.execute(
+                        "select view_funcionarios.nome, COUNT(view_vendas.quantidade) as total_vendas, CONCAT('R$ ', COALESCE(SUM(view_vendas.total), 0.00)) AS total_gasto from view_funcionarios left join view_vendas on view_vendas.cpf_funcionario=view_funcionarios.cpf GROUP BY view_funcionarios.nome")
+                    vendas = cursor.fetchall()
+            except (Exception, psycopg2.Error) as error:
+                print("Erro ao recuperar dados:", error)
+                return None
 
-    def estoque():
-        pass
+            self.relatorio.append("Relatório de vendas:")
+            header = ["Vendedor", "Quantidade de vendas", "Total vendido"]
+            self.relatorio.append(tabulate(vendas, headers=header))
+            self.relatorio.append(
+                f"\nTotal de vendas: {sum([venda[1] for venda in vendas])} | Total vendido: R${sum([float(venda[2].replace('R$ ', '')) for venda in vendas])}")
 
-    def clientes():
-        pass
+            return self.relatorio
+
+    def estoque(self):
+        estoque_baixo = []
+        em_falta = []
+        try:
+            with self.conexao.cursor() as cursor:
+                cursor.execute("SELECT * FROM estoque")
+                estoque = cursor.fetchall()
+        except (Exception, psycopg2.Error) as error:
+            print("Erro ao recuperar dados:", error)
+            return None
+        self.relatorio.append("Relatório de estoque:")
+        header = ["ISBN", "Título", "Autor", "Volume", "Preço",
+                  "Quantidade", "Categoria", "Local de fabricação"]
+        self.relatorio.append(tabulate(estoque, headers=header))
+        self.relatorio.append(
+            f"\nTotal de mangás em estoque: {len(estoque)} | Total de unidades mangás: {sum([manga[5] for manga in estoque])} | Valor total do estoque: R${sum([manga[4]*manga[5] for manga in estoque])}\n")
+        for manga in estoque:
+            if manga[5] < 5:
+                estoque_baixo.append(manga)
+        self.relatorio.append("\nMangás em estoque baixo:")
+        self.relatorio.append(tabulate(estoque_baixo, headers=header))
+        self.relatorio.append("\nMangás em falta:")
+        for manga in estoque:
+            if manga[5] == 0:
+                em_falta.append(manga)
+        self.relatorio.append(tabulate(em_falta, headers=header))
+
+        return self.relatorio
+
+    def clientes(self):
+        try:
+            with self.conexao.cursor() as cursor:
+                cursor.execute("SELECT view_clientes.nome, view_clientes.cpf, view_clientes.email, view_clientes.time_do_coracao, view_clientes.obra_favorita, view_clientes.cidade_natal, COUNT(view_vendas.total) as total_vendas, CONCAT('R$ ', COALESCE(SUM(view_vendas.total), 0.00)) AS total_gasto FROM view_clientes LEFT JOIN view_vendas ON view_vendas.cpf_cliente=view_clientes.cpf GROUP BY view_clientes.nome, view_clientes.cpf, view_clientes.email, view_clientes.time_do_coracao, view_clientes.obra_favorita, view_clientes.cidade_natal")
+                clientes = cursor.fetchall()
+        except (Exception, psycopg2.Error) as error:
+            print("Erro ao recuperar dados:", error)
+            return None
+        self.relatorio.append("Relatório de clientes:")
+        header = ["Nome", "CPF", "Email", "Time do coracao", "Obra favorita",
+                  "Cidade natal", "Compras realizadas", "Total gasto"]
+        self.relatorio.append(tabulate(clientes, headers=header))
+        self.relatorio.append(
+            f"\nTotal de clientes: {len(clientes)} || Total de compras realizadas: {sum([cliente[6] for cliente in clientes])} || Total gasto: R${sum([float(cliente[7].replace('R$ ', '')) for cliente in clientes])}")
+
+        return self.relatorio
 
 
 class GerenciadorPessoas:
@@ -247,7 +318,7 @@ class GerenciadorPessoas:
 
 
 class Venda:
-    def __init__(self, cpf_vendedor, cpf_cliente, id_venda, quantidade, total, metodo_pagamento, status_pagamento):
+    def __init__(self, cpf_vendedor, cpf_cliente, id_venda, quantidade, total, metodo_pagamento, status_pagamento, data):
         self.cpf_vendedor = cpf_vendedor
         self.cpf_cliente = cpf_cliente
         self.id_venda = id_venda
@@ -255,6 +326,7 @@ class Venda:
         self.total = total
         self.metodo_pagamento = metodo_pagamento
         self.status_pagamento = status_pagamento
+        self.data = data
 
 
 class GerenciadorVendas:
@@ -264,8 +336,8 @@ class GerenciadorVendas:
     def inserir_venda(self, venda):
         try:
             with self.conexao.cursor() as cursor:
-                cursor.execute("INSERT INTO vendas (vendedor, cliente, quantidade, total, metodo_pagamento, status_pagamento) VALUES(%s, %s, %s, %s, %s, %s) RETURNING id_venda",
-                               (venda.cpf_vendedor, venda.cpf_cliente, venda.quantidade, venda.total, venda.metodo_pagamento, venda.status_pagamento))
+                cursor.execute("INSERT INTO vendas (vendedor, cliente, quantidade, total, metodo_pagamento, status_pagamento, data) VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING id_venda",
+                               (venda.cpf_vendedor, venda.cpf_cliente, venda.quantidade, venda.total, venda.metodo_pagamento, venda.status_pagamento, venda.data))
                 id_venda = cursor.fetchone()[0]
 
                 self.conexao.commit()
@@ -336,9 +408,9 @@ def print_manga(mangas):
         print("Sua pesquisa retornou uma lista vazia.")
     else:
         print("Títulos encontrados:")
-        for manga in mangas:
-            print(
-                f"ISBN {manga[0]}: Título: {manga[1]}, Autor: {manga[2]}, Volume: {manga[3]}, Preço: R${manga[4]}, Categoria: {manga[6]}, local de fabricação: {manga[7]}, Quantidade: {manga[5]}")
+        header = ["ISBN", "Título", "Autor", "Volume", "Preço",
+                  "Quantidade", "Categoria", "Local de fabricação"]
+        print(tabulate(mangas, headers=header))
 
 
 def exibir_menu_estoque(conexao, admin):
@@ -372,6 +444,7 @@ def exibir_menu_estoque(conexao, admin):
                               quantidade, categoria, local_fab)
                 estoque.adicionar_manga(manga)
             elif opcao == "2":
+                data_with_index = []
                 print("Digite o título do mangá que deseja alterar.")
                 nome = input("Título: ")
                 if nome:
@@ -380,9 +453,13 @@ def exibir_menu_estoque(conexao, admin):
                         print("Título não encontrado.")
                         continue
 
-                    for i, manga in enumerate(titulos, 1):
-                        print(
-                            f"{i}. ISBN {manga[0]}: Título: {manga[1]}, Autor: {manga[2]}, Volume: {manga[3]}, Preço: R${manga[4]}, Categoria: {manga[6]}, local de fabricação: {manga[7]} Quantidade: {manga[5]}")
+                    for i, titulo in enumerate(titulos, 1):
+                        data_with_index.append(
+                            (i,) + titulo)
+
+                    print(tabulate(data_with_index, headers=["ID", "ISBN", "Título", "Autor", "Volume", "Preço",
+                                                             "Quantidade", "Categoria", "Local de fabricação"]))
+
                     print("Digite o id do mangá que deseja alterar.")
                     id = input("ID: ")
                     if id:
@@ -450,9 +527,14 @@ def exibir_menu_estoque(conexao, admin):
                         print("Título não encontrado.")
                         continue
 
-                    for i, manga in enumerate(titulos, 1):
-                        print(
-                            f"{i}. ISBN {manga[0]}: Título: {manga[1]}, Autor: {manga[2]}, Volume: {manga[3]}, Preço: R${manga[4]}, Categoria: {manga[6]}, local de fabricação: {manga[7]} Quantidade: {manga[5]}")
+                    data_with_index = []
+                    for i, titulo in enumerate(titulos, 1):
+                        data_with_index.append(
+                            (i,) + titulo)
+
+                    print(tabulate(data_with_index, headers=["ID", "ISBN", "Título", "Autor", "Volume", "Preço",
+                                                             "Quantidade", "Categoria", "Local de fabricação"]))
+
                     print("Digite o id do mangá que deseja remover.")
                     id = input("ID: ")
                     if id:
@@ -555,25 +637,46 @@ def exibir_menu_pessoas(conexao):
             print("Para listar todos, basta não informar o nome.")
             nome = input("Nome: ")
             clientes = gerenciador_pessoas.pesquisar_cliente(nome)
-            for i, cliente in enumerate(clientes, 1):
-                print(
-                    f"{i}. Nome: {cliente[0]} | CPF: {cliente[1]} | Email: {cliente[2]} | Time: {cliente[3]} | Obra favorita: {cliente[4]} | Cidade natal: {cliente[5]}")
+            if clientes == []:
+                print("Cliente não encontrado.")
+                continue
+
+            data_with_index = []
+            for i, titulo in enumerate(clientes, 1):
+                data_with_index.append(
+                    (i,) + titulo)
+
+            print(tabulate(data_with_index, headers=["ID", "Nome", "CPF", "Email", "Time", "Obra Favorita",
+                                                     "Cidade Natal"]))
         elif opcao == "4":
             print("Para listar todos, basta não informar o nome.")
             nome = input("Nome: ")
             vendedores = gerenciador_pessoas.pesquisar_vendedor(nome)
-            for i, vendedor in enumerate(vendedores, 1):
-                print(
-                    f"{i}. Nome: {vendedor[0]} | CPF: {vendedor[1]} | Email: {vendedor[2]} | Matrícula: {vendedor[3]}")
+            data_with_index = []
+            for i, titulo in enumerate(vendedores, 1):
+                data_with_index.append(
+                    (i,) + titulo)
+
+            print(tabulate(data_with_index, headers=[
+                  "ID", "Nome", "CPF", "Email", "Matrícula"]))
 
         elif opcao == "5":
             print("Digite o nome do cliente que deseja remover.")
             nome = input("Nome: ")
             if nome:
                 clientes = gerenciador_pessoas.pesquisar_cliente(nome)
-                for i, cliente in enumerate(clientes, 1):
-                    print(
-                        f"ID: {i}. Nome: {cliente[0]} | CPF: {cliente[1]} | Email: {cliente[2]} | Time: {cliente[3]} | Obra favorita: {cliente[4]} | Cidade natal: {cliente[5]}")
+                if clientes == []:
+                    print("Cliente não encontrado.")
+                    continue
+
+                data_with_index = []
+                for i, titulo in enumerate(clientes, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=["ID", "Nome", "CPF", "Email", "Time", "Obra Favorita",
+                                                         "Cidade Natal"]))
+
                 print("Digite o id do cliente que deseja remover.")
                 id = input("ID: ")
                 if id:
@@ -592,9 +695,16 @@ def exibir_menu_pessoas(conexao):
             nome = input("Nome: ")
             if nome:
                 vendedores = gerenciador_pessoas.pesquisar_vendedor(nome)
-                for i, vendedor in enumerate(vendedores, 1):
-                    print(
-                        f"{i}. Nome: {vendedor[0]} | CPF: {vendedor[1]} | Email: {vendedor[2]} | Matrícula: {vendedor[3]}")
+                if vendedores == []:
+                    print("Vendedor não encontrado.")
+                    continue
+                data_with_index = []
+                for i, titulo in enumerate(vendedores, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=[
+                    "ID", "Nome", "CPF", "Email", "Matrícula"]))
                 print("Digite o id do vendedor que deseja remover.")
                 id = input("ID: ")
                 if id:
@@ -617,9 +727,13 @@ def exibir_menu_pessoas(conexao):
                     print("Cliente não encontrado.")
                     continue
 
-                for i, cliente in enumerate(clientes, 1):
-                    print(
-                        f"ID: {i}. Nome: {cliente[0]} | CPF: {cliente[1]} | Email: {cliente[2]} | Time: {cliente[3]} | Obra favorita: {cliente[4]} | Cidade natal: {cliente[5]}")
+                data_with_index = []
+                for i, titulo in enumerate(clientes, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=["ID", "Nome", "CPF", "Email", "Time", "Obra Favorita",
+                                                         "Cidade Natal"]))
                 print("Digite o id do cliente que deseja alterar.")
                 id = input("ID: ")
                 if id:
@@ -659,9 +773,13 @@ def exibir_menu_pessoas(conexao):
                     print("Vendedor não encontrado.")
                     continue
 
-                for i, vendedor in enumerate(vendedores, 1):
-                    print(
-                        f"{i}. Nome: {vendedor[0]} | CPF: {vendedor[1]} | Email: {vendedor[2]} | Matrícula: {vendedor[3]}")
+                data_with_index = []
+                for i, titulo in enumerate(vendedores, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=[
+                    "ID", "Nome", "CPF", "Email", "Matrícula"]))
                 print("Digite o id do vendedor que deseja alterar.")
 
                 id = input("ID: ")
@@ -711,17 +829,34 @@ def exibir_menu_vendas(conexao,  admin):
                 nome_funcionario = input("Nome do funcionario: ")
                 vendedores = gerenciador_pessoas.pesquisar_vendedor(
                     nome_funcionario)
-                for i, vendedor in enumerate(vendedores, 1):
-                    print(
-                        f"{i}. Nome: {vendedor[0]} | CPF: {vendedor[1]} | Email: {vendedor[2]} | Matrícula: {vendedor[3]}")
+
+                if vendedores == []:
+                    print("Vendedor não encontrado.")
+                    continue
+
+                data_with_index = []
+                for i, titulo in enumerate(vendedores, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=[
+                    "ID", "Nome", "CPF", "Email", "Matrícula"]))
                 print("Digite o id do vendedor que irá vender.")
                 id_funcionario = int(input("ID: "))-1
                 print("Digite o nome do cliente que está comprando.")
                 nome_cliente = input("Nome do cliente: ")
                 clientes = gerenciador_pessoas.pesquisar_cliente(nome_cliente)
-                for i, cliente in enumerate(clientes, 1):
-                    print(
-                        f"ID: {i}. Nome: {cliente[0]} | CPF: {cliente[1]} | Email: {cliente[2]} | Time: {cliente[3]} | Obra favorita: {cliente[4]} | Cidade natal: {cliente[5]}")
+                if clientes == []:
+                    print("Cliente não encontrado.")
+                    continue
+
+                data_with_index = []
+                for i, titulo in enumerate(clientes, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=["ID", "Nome", "CPF", "Email", "Time", "Obra Favorita",
+                                                         "Cidade Natal"]))
                 print("Digite o id do cliente que deseja comprar.")
 
                 id_cliente = input("ID: ")
@@ -730,16 +865,24 @@ def exibir_menu_vendas(conexao,  admin):
                 else:
                     print("ID inválido")
                     continue
-                if (clientes[id_cliente][3] == 'flamengo' or clientes[id_cliente][4] == 'one piece' or clientes[id_cliente][5] == 'sousa'):
+                if (clientes[id_cliente][3] == 'Flamengo' or clientes[id_cliente][4] == 'One Piece' or clientes[id_cliente][5] == 'Sousa'):
                     desconto = True
                 else:
                     desconto = False
                 while True:
                     manga = input("Título do mangá: ")
                     mangas = gerenciador_estoque.pesquisar_manga(manga)
-                    for i, manga in enumerate(mangas, 1):
-                        print(
-                            f"{i}. ISBN {manga[0]}: Título: {manga[1]}, Autor: {manga[2]}, Volume: {manga[3]}, Preço: R${manga[4]}, Categoria: {manga[6]}, local de fabricação: {manga[7]} Quantidade: {manga[5]}")
+                    if mangas == []:
+                        print("Cliente não encontrado.")
+                        continue
+
+                    data_with_index = []
+                    for i, titulo in enumerate(mangas, 1):
+                        data_with_index.append(
+                            (i,) + titulo)
+
+                    print(tabulate(data_with_index, headers=["ID", "ISBN", "Título", "Autor", "Volume", "Preço",
+                                                             "Quantidade", "Categoria", "Local de fabricação"]))
                     print("Digite o id do mangá que deseja realizar a venda.")
 
                     id_manga = input("ID: ")
@@ -775,9 +918,15 @@ def exibir_menu_vendas(conexao,  admin):
                         break
                     else:
                         status_pagamento = "Método de pagamento inválido"
-                print(status_pagamento)
+
+                while True:
+                    data = input("digite a data da venda (dd/mm/aaaa): ")
+                    if data:
+                        data = int(''.join(reversed(data.split("/"))))
+                        break
+
                 venda = Venda(vendedores[id_funcionario][1], clientes[id_cliente][1], None, sum([manga[7] for manga in mangas_vendidos]), sum(
-                    [manga[4]*manga[7] for manga in mangas_vendidos]), metodo_de_pagamento, status_pagamento)
+                    [manga[4]*manga[7] for manga in mangas_vendidos]), metodo_de_pagamento, status_pagamento, data)
                 quantidade_insuficiente = False
                 for manga in mangas:
                     for manga_vendido in mangas_vendidos:
@@ -797,10 +946,17 @@ def exibir_menu_vendas(conexao,  admin):
 
             if opcao == "2":
                 vendas = gerenciador_vendas.exibir_vendas()
-                for i, venda in enumerate(vendas, 1):
-                    print(
-                        f"{i}. Vendedor: {venda[2]} | Cliente: {venda[1]} | Quantidade: {venda[3]} | Total: {venda[4]} | Método de pagamento: {venda[5]} | Status de pagamento: {venda[6]}")
-                print("Digite o ID da venda que deseja visualizar.")
+                if vendas == []:
+                    print("Não há vendas")
+                    continue
+
+                data_with_index = []
+                for i, titulo in enumerate(vendas, 1):
+                    data_with_index.append(
+                        (i,) + titulo[1:7])
+
+                print(tabulate(data_with_index, headers=["ID", "Cliente", "Vendedor", "Quantidade", "Total", "Método de pagamento",
+                                                         "Status de pagamento"]))
 
                 id = input("ID: ")
                 if id:
@@ -811,12 +967,13 @@ def exibir_menu_vendas(conexao,  admin):
 
                 itens_vendidos = gerenciador_vendas.exibir_itens_vendidos(
                     vendas[id][0])
-                print(
-                    f"Vendedor: {vendas[id][2]} | Cliente: {vendas[id][1]} | Quantidade: {vendas[id][3]} | Total: {vendas[id][4]} | Método de pagamento: {vendas[id][5]} | Status de pagamento: {vendas[id][6]}")
-                for i, item in enumerate(itens_vendidos, 1):
-                    print(
-                        f"{i}. Titulo: {item[1]} | Volume: {item[4]} |Quantidade: {item[2]} | Preço: {item[3]}")
 
+                for i in range(len(itens_vendidos)):
+                    itens_vendidos[i] = itens_vendidos[i][1:]
+
+                print(tabulate(itens_vendidos, [
+                    "Mangá", "Quantidade", "Preço", "Volume"
+                ]))
             if opcao == "3":
                 break
         else:
@@ -830,10 +987,19 @@ def exibir_menu_vendas(conexao,  admin):
                 print("Digite o nome do cliente que deseja ver suas compras.")
                 nome_cliente = input("Nome do cliente: ")
                 clientes = gerenciador_pessoas.pesquisar_cliente(nome_cliente)
-                for i, cliente in enumerate(clientes, 1):
-                    print(
-                        f"ID: {i}. Nome: {cliente[0]} | CPF: {cliente[1]} | Email: {cliente[2]} | Time: {cliente[3]} | Obra favorita: {cliente[4]} | Cidade natal: {cliente[5]}")
-                print("Digite o id do cliente que deseja comprar.")
+
+                if clientes == []:
+                    print("Cliente não encontrado.")
+                    continue
+
+                data_with_index = []
+                for i, titulo in enumerate(clientes, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+
+                print(tabulate(data_with_index, headers=["ID", "Nome", "CPF", "Email", "Time", "Obra Favorita",
+                                                         "Cidade Natal"]))
+                print("Digite o id do cliente que deseja ver suas compras.")
 
                 id_cliente = input("ID: ")
                 if id_cliente:
@@ -844,10 +1010,15 @@ def exibir_menu_vendas(conexao,  admin):
 
                 vendas_cliente = gerenciador_vendas.exibir_vendas_cliente(
                     clientes[id_cliente][1])
-                for i, venda in enumerate(vendas_cliente, 1):
-                    print(
-                        f"{i}. Vendedor: {venda[2]} | Cliente: {venda[1]} | Quantidade: {venda[3]} | Total: {venda[4]} | Método de pagamento: {venda[5]} | Status de pagamento: {venda[6]}")
-                print("Digite o ID da venda que deseja visualizar.")
+
+                data_with_index = []
+                for i, titulo in enumerate(vendas_cliente, 1):
+                    data_with_index.append(
+                        (i,) + titulo[1:7])
+
+                print(tabulate(data_with_index, headers=["ID", "Cliente", "Vendedor", "Quantidade", "Total", "Método de pagamento",
+                                                         "Status de pagamento"]))
+
                 id = input("ID: ")
                 if id:
                     id = int(id)-1
@@ -856,76 +1027,143 @@ def exibir_menu_vendas(conexao,  admin):
                     continue
                 itens_vendidos = gerenciador_vendas.exibir_itens_vendidos(
                     vendas_cliente[id][0])
-                print(
-                    f"Vendedor: {vendas_cliente[id][2]} | Cliente: {vendas_cliente[id][1]} | Quantidade: {vendas_cliente[id][3]} | Total: {vendas_cliente[id][4]} | Método de pagamento: {vendas_cliente[id][5]} | Status de pagamento: {vendas_cliente[id][6]}")
-                for i, item in enumerate(itens_vendidos, 1):
-                    print(
-                        f"{i}. Titulo: {item[1]} | Volume: {item[4]} | Quantidade: {item[2]} | Preço: {item[3]}")
+
+                for i in range(len(itens_vendidos)):
+                    itens_vendidos[i] = itens_vendidos[i][1:]
+
+                print(tabulate(itens_vendidos, [
+                    "Mangá", "Quantidade", "Preço", "Volume"
+                ]))
             if opcao == "2":
                 break
+
+
+def exibir_menu_relatorios(conexao):
+    relatorio = Relatorio(conexao)
+    gerenciador_pessoas = GerenciadorPessoas(conexao)
+
+    while True:
+        print("Menu de relatórios:")
+        print("1. Relatório de vendas")
+        print("2. Relatório de estoque")
+        print("3. Relatório de clientes")
+        print("4. Voltar")
+
+        opcao = input("Escolha uma opção: ")
+
+        if opcao == "1":
+            print("1. Relatório geral")
+            print("2. Relatório por vendedor")
+            opcao_relatorio = input("Escolha uma opção: ")
+            if opcao_relatorio == "1":
+                relatorio_vendas = relatorio.vendas(None, None, None)
+                for linha in relatorio_vendas:
+                    print(linha)
+            elif opcao_relatorio == "2":
+                vendedores = gerenciador_pessoas.pesquisar_vendedor(None)
+
+                data_with_index = []
+                for i, titulo in enumerate(vendedores, 1):
+                    data_with_index.append(
+                        (i,) + titulo)
+                print(tabulate(data_with_index, headers=[
+                    "ID", "Nome", "CPF", "Email", "Matrícula"]))
+                print("Digite o id do vendedor que deseja ver o relatorio.")
+                id_funcionario = int(input("ID: "))-1
+                print("Digite o limite inferior da data: ")
+                data_inferior = int(
+                    ''.join(reversed(input("Data: ").split("/"))))
+                print("Digite o limite superior da data: ")
+                data_superior = int(
+                    ''.join(reversed(input("Data: ").split("/"))))
+
+                relatorio_vendas = relatorio.vendas(
+                    vendedores[id_funcionario][1], data_inferior, data_superior)
+                for linha in relatorio_vendas:
+                    print(linha)
+        elif opcao == "2":
+            relatorio_estoque = relatorio.estoque()
+            for linha in relatorio_estoque:
+                print(linha)
+        elif opcao == "3":
+            relatorio_cliente = relatorio.clientes()
+            for linha in relatorio_cliente:
+                print(linha)
+        elif opcao == "4":
+            break
 
 
 def exibir_menu_principal(conexao):
     while True:
         print("\nBem vindo ao sistema de gerenciamento!")
         print(
-            "Você é um (\033[31mC\033[0m)liente ou um (\033[36mV\033[0m)endedor?")
-
+            "Você é um (\033[32mC\033[0m)liente ou um (\033[36mV\033[0m)endedor?")
+        print("(\033[31mF\033[0m) para fechar")
         opcao = input("Escolha uma opção: ")
 
         if opcao == "v" or opcao == "V":
 
             senha = input("Qual a senha? ")
 
-            if senha != "Monkey D. Marcelo":
+            if senha != "1":
                 print("senha incorreta.")
                 continue
+            while True:
+                print("\nO que você deseja acessar?")
+                print("1. Estoque")
+                print("2. Gerenciamento de pessoas")
+                print("3. Vendas")
+                print("4. Relatorios")
+                print("5. Sair")
 
-            print("\nO que você deseja acessar?")
-            print("1. Estoque")
-            print("2. Clientes")
-            print("3. Vendas")
-            print("4. Sair")
+                opcao = input("Escolha uma opção: ")
 
-            opcao = input("Escolha uma opção: ")
-
-            if opcao == "1":
-                exibir_menu_estoque(conexao, True)
-            elif opcao == "2":
-                exibir_menu_pessoas(conexao)
-            elif opcao == "3":
-                exibir_menu_vendas(conexao, True)
-            elif opcao == "4":
-                print("Saindo...")
-                break
-            else:
-                print("Opção inválida. Tente novamente.")
+                if opcao == "1":
+                    exibir_menu_estoque(conexao, True)
+                elif opcao == "2":
+                    exibir_menu_pessoas(conexao)
+                elif opcao == "3":
+                    exibir_menu_vendas(conexao, True)
+                elif opcao == "4":
+                    exibir_menu_relatorios(conexao)
+                elif opcao == "5":
+                    print("Saindo...")
+                    break
+                else:
+                    print("Opção inválida. Tente novamente.")
 
         elif opcao == "c" or opcao == "C":
-            print("\nO que você deseja acessar?")
-            print("1. Estoque")
-            print("2. Vendas")
-            print("3. Sair")
+            while True:
+                print("\nO que você deseja acessar?")
+                print("1. Estoque")
+                print("2. Vendas")
+                print("3. Sair")
 
-            opcao = input("Escolha uma opção: ")
+                opcao = input("Escolha uma opção: ")
 
-            if opcao == "1":
-                exibir_menu_estoque(conexao, False)
-            elif opcao == "2":
-                exibir_menu_vendas(conexao, False)
-            elif opcao == "3":
-                print("Saindo...")
-                break
-            else:
-                print("Opção inválida. Tente novamente.")
+                if opcao == "1":
+                    exibir_menu_estoque(conexao, False)
+                elif opcao == "2":
+                    exibir_menu_vendas(conexao, False)
+                elif opcao == "3":
+                    print("Saindo...")
+                    break
+                else:
+                    print("Opção inválida. Tente novamente.")
+        elif opcao == "f" or opcao == "F":
+            print("Fechando...")
+            break
         else:
             print("Opção inválida. Tente novamente.")
 
-
 # # Função principal
+
 
 def main():
     conexao = conectar()
+    if not conexao:
+        return
+
     exibir_menu_principal(conexao)
     conexao.close()
 
