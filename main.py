@@ -222,10 +222,8 @@ class GerenciadorPessoas:
 
     def adicionar_cliente(self, cliente):
         try:
-            self.conexao.cursor().execute("INSERT INTO pessoas (nome, cpf, email) VALUES(%s, %s, %s)",
-                                          (cliente.nome, cliente.cpf, cliente.email))
-            self.conexao.cursor().execute("INSERT INTO clientes (cpf, time_do_coracao, obra_favorita, cidade_natal) VALUES(%s, %s, %s, %s)",
-                                          (cliente.cpf, cliente.time, cliente.obra_favorita, cliente.cidade_natal))
+            self.conexao.cursor().execute("CALL adicionar_cliente(%s, %s, %s, %s, %s, %s)", (
+                cliente.nome, cliente.cpf, cliente.email, cliente.time, cliente.obra_favorita, cliente.cidade_natal))
             self.conexao.commit()
             print("Dados inseridos com sucesso.")
         except (Exception, psycopg2.Error) as error:
@@ -233,10 +231,8 @@ class GerenciadorPessoas:
 
     def adicionar_vendedor(self, vendedor):
         try:
-            self.conexao.cursor().execute("INSERT INTO pessoas (nome, cpf, email) VALUES(%s, %s, %s)",
-                                          (vendedor.nome, vendedor.cpf, vendedor.email))
-            self.conexao.cursor().execute("INSERT INTO funcionarios (cpf, matricula) VALUES(%s, %s)",
-                                          (vendedor.cpf, vendedor.matricula))
+            self.conexao.cursor().execute("CALL adicionar_vendedor(%s, %s, %s, %s)",
+                                          (vendedor.nome, vendedor.cpf, vendedor.email, vendedor.matricula))
             self.conexao.commit()
             print("Dados inseridos com sucesso.")
         except (Exception, psycopg2.Error) as error:
@@ -273,9 +269,7 @@ class GerenciadorPessoas:
     def remover_cliente(self, cpf):
         try:
             self.conexao.cursor().execute(
-                "DELETE FROM pessoas WHERE cpf = %s", (cpf,))
-            self.conexao.cursor().execute(
-                "DELETE FROM clientes WHERE cpf = %s", (cpf,))
+                "CALL remover_cliente(%s)", (cpf,))
             self.conexao.commit()
             print("Cliente removido com sucesso.")
         except (Exception, psycopg2.Error) as error:
@@ -284,9 +278,7 @@ class GerenciadorPessoas:
     def remover_vendedor(self, cpf):
         try:
             self.conexao.cursor().execute(
-                "DELETE FROM pessoas WHERE cpf = %s", (cpf,))
-            self.conexao.cursor().execute(
-                "DELETE FROM funcionarios WHERE cpf = %s", (cpf,))
+                "CALL remover_vendedor(%s)", (cpf,))
             self.conexao.commit()
             print("Funcionario removido com sucesso.")
         except (Exception, psycopg2.Error) as error:
@@ -296,9 +288,7 @@ class GerenciadorPessoas:
         try:
             with self.conexao.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE pessoas SET nome = %s, email = %s WHERE cpf = %s", (novo_nome, novo_email, cpf))
-                cursor.execute("UPDATE clientes SET time_do_coracao = %s, obra_favorita = %s, cidade_natal = %s WHERE cpf = %s", (
-                    novo_time, nova_obra_favorita, nova_cidade_natal, cpf,))
+                    "CALL alterar_cliente(%s, %s, %s, %s, %s, %s)", (cpf, novo_nome, novo_email, novo_time, nova_obra_favorita, nova_cidade_natal))
                 self.conexao.commit()
                 print("Cliente alterado com sucesso.")
         except (Exception, psycopg2.Error) as error:
@@ -308,9 +298,7 @@ class GerenciadorPessoas:
         try:
             with self.conexao.cursor() as cursor:
                 cursor.execute(
-                    "UPDATE pessoas SET nome = %s, email = %s WHERE cpf = %s", (novo_nome, novo_email, cpf,))
-                cursor.execute(
-                    "UPDATE funcionarios SET matricula = %s WHERE cpf = %s", (nova_matricula, cpf,))
+                    "CALL alterar_vendedor(%s, %s, %s, %s)", (cpf, novo_nome, novo_email, nova_matricula))
                 self.conexao.commit()
                 print("Funcionario alterado com sucesso.")
         except (Exception, psycopg2.Error) as error:

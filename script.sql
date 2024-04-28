@@ -80,3 +80,127 @@ CREATE OR REPLACE VIEW view_itens_vendidos AS
 SELECT itens_vendidos.id_venda, estoque.titulo, itens_vendidos.quantidade, itens_vendidos.preco
 FROM itens_vendidos
 JOIN estoque ON itens_vendidos.isbn = estoque.isbn;
+
+
+CREATE OR REPLACE PROCEDURE adicionar_cliente(
+    nome_param TEXT,
+    cpf_param TEXT,
+    email_param TEXT,
+    time_do_coracao_param TEXT,
+    obra_favorita_param TEXT,
+    cidade_natal_param TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Inserir os dados na tabela pessoas
+    INSERT INTO pessoas (nome, cpf, email)
+    VALUES (nome_param, cpf_param, email_param);
+    
+    -- Inserir os dados na tabela clientes
+    INSERT INTO clientes (cpf, time_do_coracao, obra_favorita, cidade_natal)
+    VALUES (cpf_param, time_do_coracao_param, obra_favorita_param, cidade_natal_param);
+    
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE adicionar_vendedor(
+    nome_param TEXT,
+    cpf_param TEXT,
+    email_param TEXT,
+    matricula_param TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Inserir os dados na tabela pessoas
+    INSERT INTO pessoas (nome, cpf, email)
+    VALUES (nome_param, cpf_param, email_param);
+    
+    -- Inserir os dados na tabela funcionarios
+    INSERT INTO funcionarios (cpf, matricula)
+    VALUES (cpf_param, matricula_param);
+    
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE remover_cliente(
+    cpf_param TEXT
+)
+LANGUAGE plpgsql
+AS $$
+begin
+	
+	-- Remover o cliente da tabela clientes
+    DELETE FROM clientes WHERE cpf = cpf_param;
+   
+    -- Remover o cliente da tabela pessoas
+    DELETE FROM pessoas WHERE cpf = cpf_param;
+    
+   
+END;
+$$;
+
+
+CREATE OR REPLACE PROCEDURE remover_vendedor(
+    cpf_param TEXT
+)
+LANGUAGE plpgsql
+AS $$
+begin
+	    
+    -- Remover o vendedor da tabela funcionarios
+    DELETE FROM funcionarios WHERE cpf = cpf_param;
+   
+    -- Remover o vendedor da tabela pessoas
+    DELETE FROM pessoas WHERE cpf = cpf_param;
+
+    
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE alterar_cliente(
+    cpf_param TEXT,
+    novo_nome_param TEXT,
+    novo_email_param TEXT,
+    novo_time_param TEXT,
+    nova_obra_favorita_param TEXT,
+    nova_cidade_natal_param TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Atualizar o nome e o e-mail na tabela pessoas
+    UPDATE pessoas
+    SET nome = novo_nome_param, email = novo_email_param
+    WHERE cpf = cpf_param;
+    
+    -- Atualizar o time do coração, a obra favorita e a cidade natal na tabela clientes
+    UPDATE clientes
+    SET time_do_coracao = novo_time_param, obra_favorita = nova_obra_favorita_param, cidade_natal = nova_cidade_natal_param
+    WHERE cpf = cpf_param;
+    
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE alterar_vendedor(
+    cpf_param TEXT,
+    novo_nome_param TEXT,
+    novo_email_param TEXT,
+    nova_matricula_param TEXT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Atualizar o nome e o e-mail na tabela pessoas
+    UPDATE pessoas
+    SET nome = novo_nome_param, email = novo_email_param
+    WHERE cpf = cpf_param;
+    
+    -- Atualizar a matrícula na tabela funcionarios
+    UPDATE funcionarios
+    SET matricula = nova_matricula_param
+    WHERE cpf = cpf_param;
+    
+END;
+$$;
