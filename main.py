@@ -108,6 +108,16 @@ class EstoqueMangas:
             print("Erro ao recuperar dados:", error)
             return None
 
+    def pesquisar_manga_categoria(self, categoria):
+        try:
+            with self.conexao.cursor() as cursor:
+                cursor.execute(
+                    "SELECT * FROM estoque WHERE categoria ILIKE %s", (f"%{categoria}%",))
+                return cursor.fetchall()
+        except (Exception, psycopg2.Error) as error:
+            print("Erro ao buscar manga:", error)
+            return None
+
 
 class Pessoa:
     def __init__(self, nome, email, cpf):
@@ -174,7 +184,8 @@ class Relatorio:
         em_falta = []
         try:
             with self.conexao.cursor() as cursor:
-                cursor.execute("SELECT * FROM estoque")
+                cursor.execute(
+                    "SELECT * FROM estoque ORDER BY titulo ASC, volume ASC")
                 estoque = cursor.fetchall()
         except (Exception, psycopg2.Error) as error:
             print("Erro ao recuperar dados:", error)
@@ -186,7 +197,7 @@ class Relatorio:
         self.relatorio.append(
             f"\nTotal de mangás em estoque: {len(estoque)} | Total de unidades mangás: {sum([manga[5] for manga in estoque])} | Valor total do estoque: R${sum([manga[4]*manga[5] for manga in estoque])}\n")
         for manga in estoque:
-            if manga[5] < 5:
+            if manga[5] < 5 and manga[5] != 0:
                 estoque_baixo.append(manga)
         self.relatorio.append("\nMangás em estoque baixo:")
         self.relatorio.append(tabulate(estoque_baixo, headers=header))
@@ -486,7 +497,8 @@ def exibir_menu_estoque(conexao, admin):
                 print("\nMenu de pesquisa:")
                 print("1. Pesquisar por título")
                 print("2. Pesquisar por preço")
-                print("3. Voltar")
+                print("3. Pesquisar por categoria")
+                print("4. Voltar")
 
                 opcao = input("Escolha uma opção: ")
                 if opcao == "1":
@@ -504,6 +516,9 @@ def exibir_menu_estoque(conexao, admin):
                         continue
 
                     print_manga(estoque.exibir_estoque_faixa_preco(p1, p2))
+                elif opcao == "3":
+                    categoria = input("Categoria: ")
+                    print_manga(estoque.pesquisar_manga_categoria(categoria))
                 else:
                     continue
             elif opcao == "4":
@@ -559,7 +574,8 @@ def exibir_menu_estoque(conexao, admin):
                 print("\nMenu de pesquisa:")
                 print("1. Pesquisar por título")
                 print("2. Pesquisar por preço")
-                print("3. Voltar")
+                print("3. Pesquisar por categoria")
+                print("4. Voltar")
 
                 opcao = input("Escolha uma opção: ")
                 if opcao == "1":
@@ -577,6 +593,9 @@ def exibir_menu_estoque(conexao, admin):
                         continue
 
                     print_manga(estoque.exibir_estoque_faixa_preco(p1, p2))
+                elif opcao == "3":
+                    categoria = input("Categoria: ")
+                    print_manga(estoque.pesquisar_manga_categoria(categoria))
                 else:
                     continue
             elif opcao == "2":
